@@ -132,3 +132,45 @@ def test_delete_all_stores(api, fake_client):
 
     assert response.json() == {"deleted": [first.name, second.name]}
     assert fake_client.file_search_stores.items == {}
+
+
+def test_health_endpoint_used_by_the_frontend(api):
+    response = api.get("/health")
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok"}
+
+
+def test_query_resolves_store_display_name(api, fake_client):
+    store = fake_client.file_search_stores.create({"display_name": "Handbook"})
+
+    api.post("/api/stores/Handbook/query", json={"prompt": "Hi"})
+
+    config = fake_client.models.calls[0]["config"]
+    assert config.tools[0].file_search.file_search_store_names == [store.name]
+
+
+def test_upload_defaults_document_name_to_original_filename(api, fake_client):
+    store = fake_client.file_search_stores.create({"display_name": "Handbook"})
+
+    api.post(f"/api/stores/{store.name}/files", files={"file": ("rota.pdf", b"%PDF", "application/pdf")})
+
+    assert fake_client.file_search_stores.uploads[0]["config"] == {"display_name": "rota.pdf"}
+
+
+def test_upload_stops_polling_after_timeout(fake_client, settings):
+    from app.services.file_search_service import FileSearchService
+
+    fake_client.upload_done_after = 10_000
+    settings.upload_poll_interval_seconds = 5
+    settings.upload_timeout_seconds = 12
+    store = fake_client.file_search_stores.create({"display_name": "Handbook"})
+    service = FileSearchService(client=fake_client, settings=settings)
+
+    import tempfile
+
+    with tempfile.NamedTemporaryFile(suffix=".txt") as tmp:
+        result = service.upload_file(store.name, tmp.name)
+
+    assert result["done"] is False
+    assert fake_client.operations.polls == 3

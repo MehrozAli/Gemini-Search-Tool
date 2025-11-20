@@ -1,6 +1,7 @@
 """Service layer mirroring the behaviors implemented in SearchTool.py."""
 from __future__ import annotations
 
+import math
 import os
 import tempfile
 import time
@@ -72,8 +73,12 @@ class FileSearchService:
             config=config if config else None,
         )
 
-        while not operation.done:
-            time.sleep(self.settings.upload_poll_interval_seconds)
+        interval = self.settings.upload_poll_interval_seconds
+        max_polls = math.ceil(self.settings.upload_timeout_seconds / interval)
+        for _ in range(max_polls):
+            if operation.done:
+                break
+            time.sleep(interval)
             operation = self.client.operations.get(operation)
 
         return self._operation_to_dict(operation)
@@ -190,12 +195,11 @@ class FileSearchService:
             "parts": [{"text": current_content}]
         })
 
-        # Configure file search tool
         config = types.GenerateContentConfig(
             tools=[
                 types.Tool(
                     file_search=types.FileSearch(
-                        file_search_store_names=[store_name],
+                        file_search_store_names=[self._resolve_store_resource(store_name)],
                     )
                 )
             ]

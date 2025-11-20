@@ -80,9 +80,8 @@ async def upload_file(
             service.upload_file,
             store_name,
             temp_file_path,
-            display_name,
+            display_name or file.filename,
         )
-        print("Result: ", result)
         message = "File uploaded and ingested" if result.get("done") else "File upload in progress"
         return UploadFileResponse(
             operation_name=result.get("name"),

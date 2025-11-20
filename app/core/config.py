@@ -21,6 +21,12 @@ class Settings(BaseSettings):
         ge=1.0,
         description="Polling interval (seconds) for long-running operations",
     )
+    upload_timeout_seconds: float = Field(
+        300.0,
+        alias="UPLOAD_TIMEOUT_SECONDS",
+        gt=0,
+        description="How long to wait for ingest before reporting it as still in progress",
+    )
     default_model: str = Field(
         "gemini-3-flash-preview",
         alias="DEFAULT_MODEL",

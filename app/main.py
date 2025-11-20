@@ -20,5 +20,6 @@ app.include_router(file_search_router)
 
 
 @app.get("/", response_model=HealthResponse, tags=["health"])
+@app.get("/health", response_model=HealthResponse, tags=["health"])
 def healthcheck() -> HealthResponse:
     return HealthResponse(status="ok")
