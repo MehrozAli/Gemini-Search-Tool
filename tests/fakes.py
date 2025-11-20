@@ -5,6 +5,8 @@ import itertools
 from datetime import datetime, timezone
 from types import SimpleNamespace
 
+from google.genai import errors
+
 
 class FakeOperation(SimpleNamespace):
     pass
@@ -33,7 +35,7 @@ class FakeStores:
 
     def delete(self, name: str, config: dict | None = None):
         if name not in self.items:
-            raise LookupError(f"{name} not found")
+            raise errors.ClientError(404, {"error": {"code": 404, "message": f"{name} not found"}})
         self.deleted.append((name, config or {}))
         del self.items[name]
 

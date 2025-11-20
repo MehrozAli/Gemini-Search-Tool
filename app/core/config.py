@@ -29,6 +29,10 @@ class Settings(BaseSettings):
         gt=0,
         description="How long to wait for ingest before reporting it as still in progress",
     )
+    notion_token: str | None = Field(None, alias="NOTION_TOKEN", description="Notion integration token")
+    notion_database_id: str | None = Field(
+        None, alias="NOTION_DATABASE_ID", description="Notion database that seeds new stores"
+    )
     default_model: str = Field(
         "gemini-3-flash-preview",
         alias="DEFAULT_MODEL",

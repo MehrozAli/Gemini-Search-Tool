@@ -1,4 +1,5 @@
 """FastAPI application entry point."""
+import requests
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -30,6 +31,11 @@ PASSTHROUGH_STATUSES = {400, 404, 429}
 async def gemini_error_handler(_request: Request, exc: genai_errors.APIError) -> JSONResponse:
     status = exc.code if exc.code in PASSTHROUGH_STATUSES else 502
     return JSONResponse(status_code=status, content={"detail": f"Gemini API error: {exc.message}"})
+
+
+@app.exception_handler(requests.RequestException)
+async def notion_error_handler(_request: Request, exc: requests.RequestException) -> JSONResponse:
+    return JSONResponse(status_code=502, content={"detail": f"Notion API error: {exc}"})
 
 
 @app.exception_handler(ConfigurationError)
