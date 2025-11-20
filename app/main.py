@@ -1,8 +1,11 @@
 """FastAPI application entry point."""
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from google.genai import errors as genai_errors
 
 from app.api.routes import router as file_search_router
+from app.core.errors import ConfigurationError
 from app.schemas.file_search import HealthResponse
 
 app = FastAPI(title="Gemini File Search API", version="0.1.0")
@@ -17,6 +20,21 @@ app.add_middleware(
 )
 
 app.include_router(file_search_router)
+
+# Gemini client errors that mean something to the caller keep their status;
+# anything else from upstream is reported as a bad gateway.
+PASSTHROUGH_STATUSES = {400, 404, 429}
+
+
+@app.exception_handler(genai_errors.APIError)
+async def gemini_error_handler(_request: Request, exc: genai_errors.APIError) -> JSONResponse:
+    status = exc.code if exc.code in PASSTHROUGH_STATUSES else 502
+    return JSONResponse(status_code=status, content={"detail": f"Gemini API error: {exc.message}"})
+
+
+@app.exception_handler(ConfigurationError)
+async def configuration_error_handler(_request: Request, exc: ConfigurationError) -> JSONResponse:
+    return JSONResponse(status_code=503, content={"detail": str(exc)})
 
 
 @app.get("/", response_model=HealthResponse, tags=["health"])

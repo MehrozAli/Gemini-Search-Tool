@@ -11,7 +11,9 @@ load_dotenv()
 class Settings(BaseSettings):
     """Central application settings loaded from environment variables."""
 
-    google_api_key: str = Field(..., alias="GOOGLE_API_KEY", description="Google API key for Gemini")
+    google_api_key: str | None = Field(
+        None, alias="GOOGLE_API_KEY", description="Google API key for Gemini"
+    )
     default_store_display_name: str = Field(
         "my-file-search-store", alias="DEFAULT_STORE_DISPLAY_NAME", description="Fallback store name"
     )

@@ -1,5 +1,5 @@
 """Pydantic schemas for request and response payloads."""
-from typing import List, Optional
+from typing import List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -33,7 +33,7 @@ class CreateStoreResponse(BaseModel):
 
 class ConversationMessage(BaseModel):
     """Represents a single message in the conversation history."""
-    role: str = Field(..., description="Role of the message sender: 'user' or 'model'")
+    role: Literal["user", "model"] = Field(..., description="Role of the message sender")
     content: str = Field(..., description="Text content of the message")
 
 

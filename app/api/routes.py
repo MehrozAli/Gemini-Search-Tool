@@ -4,9 +4,9 @@ from __future__ import annotations
 import os
 import shutil
 import tempfile
-from typing import Annotated
+from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, Query
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from fastapi.concurrency import run_in_threadpool
 
 from app.schemas.file_search import (
@@ -17,9 +17,9 @@ from app.schemas.file_search import (
     QueryRequest,
     QueryResponse,
     StoreListResponse,
-    UploadFileResponse,
     SyncRequest,
     SyncResponse,
+    UploadFileResponse,
 )
 from app.services.file_search_service import FileSearchService
 
@@ -28,6 +28,19 @@ router = APIRouter(prefix="/api", tags=["file-search"])
 
 def get_service() -> FileSearchService:
     return FileSearchService()
+
+
+UPLOAD_MESSAGES = ("File uploaded and ingested", "File upload in progress")
+SYNC_MESSAGES = ("File synced and ingested", "File sync in progress")
+
+
+def _ingest_response(operation: dict[str, Any], messages: tuple[str, str]) -> UploadFileResponse:
+    done = bool(operation.get("done"))
+    return UploadFileResponse(
+        operation_name=operation.get("name"),
+        done=done,
+        message=messages[0] if done else messages[1],
+    )
 
 
 @router.get("/stores", response_model=StoreListResponse)
@@ -41,20 +54,12 @@ async def create_store(
     payload: CreateStoreRequest,
     service: FileSearchService = Depends(get_service),
 ) -> CreateStoreResponse:
-    try:
-        result = await run_in_threadpool(service.create_store, payload.display_name)
-        ingest = result.get("ingest") or {}
-        message = "File uploaded and ingested" if ingest.get("done") else "File upload in progress"
-        ingest_resp = None
-        if ingest:
-            ingest_resp = UploadFileResponse(
-                operation_name=ingest.get("name"),
-                done=bool(ingest.get("done")),
-                message=message,
-            )
-        return CreateStoreResponse(store=result["store"], ingest=ingest_resp)
-    except Exception as exc:  # pragma: no cover - surface clean error upstream
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    result = await run_in_threadpool(service.create_store, payload.display_name)
+    ingest = result.get("ingest")
+    return CreateStoreResponse(
+        store=result["store"],
+        ingest=_ingest_response(ingest, UPLOAD_MESSAGES) if ingest else None,
+    )
 
 
 @router.post("/stores/{store_name:path}/files", response_model=UploadFileResponse)
@@ -64,13 +69,11 @@ async def upload_file(
     display_name: Annotated[str | None, Query()] = None,
     service: FileSearchService = Depends(get_service),
 ) -> UploadFileResponse:
-    if file.filename is None:
+    if not file.filename:
         raise HTTPException(status_code=400, detail="Uploaded file must include a filename")
 
-    await file.seek(0)
     suffix = os.path.splitext(file.filename)[1]
     temp_file_path = None
-
     try:
         with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
             shutil.copyfileobj(file.file, tmp)
@@ -82,14 +85,7 @@ async def upload_file(
             temp_file_path,
             display_name or file.filename,
         )
-        message = "File uploaded and ingested" if result.get("done") else "File upload in progress"
-        return UploadFileResponse(
-            operation_name=result.get("name"),
-            done=bool(result.get("done")),
-            message=message,
-        )
-    except Exception as exc:  # pragma: no cover
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        return _ingest_response(result, UPLOAD_MESSAGES)
     finally:
         await file.close()
         if temp_file_path and os.path.exists(temp_file_path):
@@ -102,22 +98,8 @@ async def sync_store(
     payload: SyncRequest,
     service: FileSearchService = Depends(get_service),
 ) -> SyncResponse:
-    try:
-        result = await run_in_threadpool(
-            service.sync_graph_document,
-            store_name,
-            payload.display_name,
-        )
-        ingest = result.get("ingest") or {}
-        message = "File synced and ingested" if ingest.get("done") else "File sync in progress"
-        ingest_resp = UploadFileResponse(
-            operation_name=ingest.get("name"),
-            done=bool(ingest.get("done")),
-            message=message,
-        )
-        return SyncResponse(store=result["store"], ingest=ingest_resp)
-    except Exception as exc:  # pragma: no cover
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    result = await run_in_threadpool(service.sync_graph_document, store_name, payload.display_name)
+    return SyncResponse(store=result["store"], ingest=_ingest_response(result["ingest"], SYNC_MESSAGES))
 
 
 @router.post("/stores/{store_name:path}/query", response_model=QueryResponse)
@@ -126,26 +108,16 @@ async def query_store(
     payload: QueryRequest,
     service: FileSearchService = Depends(get_service),
 ) -> QueryResponse:
-    try:
-        # Convert Pydantic models to dicts for conversation history
-        conversation_history = None
-        if payload.conversation_history:
-            conversation_history = [
-                {"role": msg.role, "content": msg.content}
-                for msg in payload.conversation_history
-            ]
-        
-        result = await run_in_threadpool(
-            service.query_store,
-            store_name,
-            payload.prompt,
-            payload.model,
-            payload.system_prompt,
-            conversation_history  # Pass conversation history
-        )
-        return QueryResponse(**result)
-    except Exception as exc:  # pragma: no cover
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    history = [message.model_dump() for message in payload.conversation_history or []]
+    result = await run_in_threadpool(
+        service.query_store,
+        store_name,
+        payload.prompt,
+        payload.model,
+        payload.system_prompt,
+        history,
+    )
+    return QueryResponse(**result)
 
 
 @router.delete("/stores/{store_name:path}", response_model=DeleteStoreResponse)
@@ -153,14 +125,8 @@ async def delete_store(
     store_name: str,
     service: FileSearchService = Depends(get_service),
 ) -> DeleteStoreResponse:
-    try:
-        deleted = await run_in_threadpool(service.delete_store, store_name)
-        return DeleteStoreResponse(
-            deleted=deleted,
-            message=f"Store '{store_name}' deleted successfully"
-        )
-    except Exception as exc:  # pragma: no cover
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    deleted = await run_in_threadpool(service.delete_store, store_name)
+    return DeleteStoreResponse(deleted=deleted, message=f"Store '{store_name}' deleted successfully")
 
 
 @router.delete("/stores", response_model=DeleteStoresResponse)

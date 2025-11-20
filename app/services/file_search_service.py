@@ -209,19 +209,12 @@ class FileSearchService:
         if system_prompt:
             config.system_instruction = system_prompt
 
-        try:
-            response = self.client.models.generate_content(
-                model=model or self.settings.default_model,
-                contents=contents,  # Pass full conversation context
-                config=config,
-            )
-            return self._response_to_dict(response)
-        except Exception as e:
-            # Return error information in a structured way
-            return {
-                "text": f"Error querying store: {str(e)}",
-                "sources": []
-            }
+        response = self.client.models.generate_content(
+            model=model or self.settings.default_model,
+            contents=contents,
+            config=config,
+        )
+        return self._response_to_dict(response)
 
     def delete_store(self, store_name: str) -> str:
         """Delete a specific file search store (force)."""
