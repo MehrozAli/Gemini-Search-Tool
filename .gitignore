@@ -1,0 +1,45 @@
+# Environment and secrets
+.env
+.env.*
+!.env.example
+*.env
+
+# Virtual environments
+.venv/
+venv/
+*.venv
+project_venv/
+node_modules/
+
+# Python caches and build output
+__pycache__/
+*.py[cod]
+*.pyz
+*.pywz
+build/
+dist/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+coverage/
+htmlcov/
+
+# Generated knowledge graph output
+knowledge_graph.json
+knowledge_graph.gexf
+chroma_db/
+
+# Logs and scratch
+*.log
+logs/
+tmp/
+
+# Editors and OS
+.cursor/
+.idea/
+.vscode/
+.DS_Store
+
+.github/
