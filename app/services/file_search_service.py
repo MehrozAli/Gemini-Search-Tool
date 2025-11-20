@@ -15,9 +15,9 @@ from app.core.config import get_settings
 class FileSearchService:
     """Wrap Gemini File Search interactions in a reusable service."""
 
-    def __init__(self):
-        self.client = get_genai_client()
-        self.settings = get_settings()
+    def __init__(self, client: Any = None, settings: Any = None):
+        self.client = client if client is not None else get_genai_client()
+        self.settings = settings if settings is not None else get_settings()
 
     def create_store(self, display_name: Optional[str] = None) -> Dict[str, Any]:
         """
