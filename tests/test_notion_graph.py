@@ -52,7 +52,10 @@ def test_database_query_follows_pagination(session):
         ({"type": "formula", "formula": {"type": "boolean", "boolean": True}}, True),
         ({"type": "rollup", "rollup": {"type": "number", "number": 7}}, 7),
         (
-            {"type": "rollup", "rollup": {"type": "array", "array": [{"type": "title", "title": [{"plain_text": "x"}]}]}},
+            {
+                "type": "rollup",
+                "rollup": {"type": "array", "array": [{"type": "title", "title": [{"plain_text": "x"}]}]},
+            },
             ["x"],
         ),
     ],
@@ -66,12 +69,21 @@ def test_extract_property_value(prop, expected):
     [
         ({"type": "divider", "divider": {}}, "---"),
         ({"type": "to_do", "to_do": {"checked": True, "rich_text": [{"plain_text": "ship"}]}}, "[x] ship"),
-        ({"type": "code", "code": {"language": "sql", "rich_text": [{"plain_text": "select 1"}]}}, "```sql\nselect 1\n```"),
         (
-            {"type": "image", "image": {"type": "external", "external": {"url": "https://x.test/a.png"}, "caption": []}},
+            {"type": "code", "code": {"language": "sql", "rich_text": [{"plain_text": "select 1"}]}},
+            "```sql\nselect 1\n```",
+        ),
+        (
+            {
+                "type": "image",
+                "image": {"type": "external", "external": {"url": "https://x.test/a.png"}, "caption": []},
+            },
             "[IMAGE](https://x.test/a.png)",
         ),
-        ({"type": "bookmark", "bookmark": {"url": "https://x.test", "caption": [{"plain_text": "Docs"}]}}, "[BOOKMARK: Docs](https://x.test)"),
+        (
+            {"type": "bookmark", "bookmark": {"url": "https://x.test", "caption": [{"plain_text": "Docs"}]}},
+            "[BOOKMARK: Docs](https://x.test)",
+        ),
         ({"type": "child_database", "child_database": {}}, ""),
     ],
 )
@@ -149,9 +161,7 @@ def test_builder_requires_token_and_database():
 
 
 def test_cli_writes_graph_files(monkeypatch, tmp_path, capsys):
-    monkeypatch.setattr(
-        notion_graph, "get_settings", lambda: Settings(NOTION_TOKEN="t", NOTION_DATABASE_ID="db-demo")
-    )
+    monkeypatch.setattr(notion_graph, "get_settings", lambda: Settings(NOTION_TOKEN="t", NOTION_DATABASE_ID="db-demo"))
     monkeypatch.setattr(notion_graph.requests, "Session", FakeNotionSession)
 
     code = notion_graph.main(

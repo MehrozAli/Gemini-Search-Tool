@@ -1,4 +1,5 @@
 """A fake requests.Session that answers like the Notion API for a tiny demo workspace."""
+
 from __future__ import annotations
 
 import requests
@@ -57,7 +58,9 @@ KB_BLOCKS = {
         {"type": "numbered_list_item", "numbered_list_item": {"rich_text": [{"plain_text": "Open a report"}]}},
         {
             "type": "paragraph",
-            "paragraph": {"rich_text": [{"plain_text": "See the "}, {"plain_text": "guide", "href": "https://x.test/g"}]},
+            "paragraph": {
+                "rich_text": [{"plain_text": "See the "}, {"plain_text": "guide", "href": "https://x.test/g"}]
+            },
         },
         {"type": "unsupported", "unsupported": {}},
     ]

@@ -1,4 +1,5 @@
 """Service layer around the Gemini File Search API."""
+
 from __future__ import annotations
 
 import math

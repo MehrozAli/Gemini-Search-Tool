@@ -1,8 +1,9 @@
 """In-memory stand-in for the parts of google.genai.Client the service uses."""
+
 from __future__ import annotations
 
 import itertools
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from types import SimpleNamespace
 
 from google.genai import errors
@@ -25,7 +26,7 @@ class FakeStores:
         store = SimpleNamespace(
             name=name,
             display_name=config.get("display_name"),
-            create_time=datetime(2026, 11, 9, 12, 0, tzinfo=timezone.utc),
+            create_time=datetime(2026, 11, 9, 12, 0, tzinfo=UTC),
         )
         self.items[name] = store
         return store
@@ -42,9 +43,7 @@ class FakeStores:
     def upload_to_file_search_store(self, file, file_search_store_name, config=None):
         with open(file, "rb") as fh:
             content = fh.read()
-        self.uploads.append(
-            {"file": file, "store": file_search_store_name, "config": config, "content": content}
-        )
+        self.uploads.append({"file": file, "store": file_search_store_name, "config": config, "content": content})
         return FakeOperation(
             name=f"{file_search_store_name}/upload/operations/op-{len(self.uploads)}",
             done=self._client.upload_done_after == 0,

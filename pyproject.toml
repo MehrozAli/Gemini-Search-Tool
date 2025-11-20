@@ -8,3 +8,12 @@ requires-python = ">=3.13"
 testpaths = ["tests"]
 pythonpath = ["."]
 addopts = "-q"
+
+[tool.ruff]
+line-length = 120
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "BLE"]
+# FastAPI declares dependencies and form fields as call defaults.
+ignore = ["B008"]

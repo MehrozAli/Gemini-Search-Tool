@@ -10,6 +10,7 @@ It also runs on its own:
 
     python -m app.notion_graph --output knowledge_graph.json --gexf knowledge_graph.gexf
 """
+
 from __future__ import annotations
 
 import argparse
@@ -64,9 +65,7 @@ class NotionClient:
         )
 
     def _request(self, method: str, path: str, **kwargs: Any) -> dict[str, Any]:
-        response = self.session.request(
-            method, f"{NOTION_API_URL}/{path}", timeout=REQUEST_TIMEOUT_SECONDS, **kwargs
-        )
+        response = self.session.request(method, f"{NOTION_API_URL}/{path}", timeout=REQUEST_TIMEOUT_SECONDS, **kwargs)
         response.raise_for_status()
         return response.json()
 
@@ -199,9 +198,7 @@ class NotionKnowledgeGraphBuilder:
             "created_time": page.get("created_time"),
             "last_edited_time": page.get("last_edited_time"),
             "title": extract_page_title(page),
-            "properties": {
-                name: extract_property_value(prop) for name, prop in page.get("properties", {}).items()
-            },
+            "properties": {name: extract_property_value(prop) for name, prop in page.get("properties", {}).items()},
             "page_content": self.fetch_page_content(page_id),
         }
 
@@ -232,9 +229,7 @@ class NotionKnowledgeGraphBuilder:
                     continue
                 kb_node_id = f"kb_{kb_id}"
                 attrs = {key: value for key, value in article.items() if key != "id"}
-                self.graph.add_node(
-                    kb_node_id, name=article["title"], node_type=KB_ARTICLE, original_id=kb_id, **attrs
-                )
+                self.graph.add_node(kb_node_id, name=article["title"], node_type=KB_ARTICLE, original_id=kb_id, **attrs)
                 self.graph.add_edge(page_id, kb_node_id, relationship=HAS_KB_ARTICLE)
 
         nodes_by_alias: dict[str, list[str]] = defaultdict(list)
@@ -258,8 +253,10 @@ class NotionKnowledgeGraphBuilder:
         return self.graph
 
     def _related(self, node_id: str, relationships: tuple[str, ...], outgoing: bool) -> list[str]:
-        edges = self.graph.out_edges(node_id, data="relationship") if outgoing else self.graph.in_edges(
-            node_id, data="relationship"
+        edges = (
+            self.graph.out_edges(node_id, data="relationship")
+            if outgoing
+            else self.graph.in_edges(node_id, data="relationship")
         )
         return [(target if outgoing else source) for source, target, rel in edges if rel in relationships]
 
@@ -352,9 +349,7 @@ class NotionKnowledgeGraphBuilder:
         nx.write_gexf(simple, path)
 
 
-def builder_from_settings(
-    settings: Settings, session: requests.Session | None = None
-) -> NotionKnowledgeGraphBuilder:
+def builder_from_settings(settings: Settings, session: requests.Session | None = None) -> NotionKnowledgeGraphBuilder:
     if not settings.notion_token or not settings.notion_database_id:
         raise ConfigurationError("NOTION_TOKEN and NOTION_DATABASE_ID must both be set")
     return NotionKnowledgeGraphBuilder(

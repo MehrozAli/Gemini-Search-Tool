@@ -1,4 +1,5 @@
 """API routes for file search management."""
+
 from __future__ import annotations
 
 import os

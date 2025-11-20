@@ -1,4 +1,5 @@
 """Shared clients used across the API."""
+
 from functools import lru_cache
 
 from google import genai
