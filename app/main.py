@@ -7,15 +7,15 @@ from fastapi.responses import JSONResponse
 from google.genai import errors as genai_errors
 
 from app.api.routes import router as file_search_router
+from app.core.config import get_settings
 from app.core.errors import ConfigurationError
 from app.schemas.file_search import HealthResponse
 
 app = FastAPI(title="Gemini File Search API", version="0.1.0")
 
-# Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=get_settings().cors_origin_list,
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],

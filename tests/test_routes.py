@@ -174,3 +174,17 @@ def test_upload_stops_polling_after_timeout(fake_client, settings):
 
     assert result["done"] is False
     assert fake_client.operations.polls == 3
+
+
+def test_cors_allows_any_origin_by_default(api):
+    response = api.get("/health", headers={"Origin": "http://localhost:3000"})
+
+    assert response.headers["access-control-allow-origin"] == "*"
+
+
+def test_cors_origins_parse_from_comma_separated_setting():
+    from app.core.config import Settings
+
+    settings = Settings(CORS_ORIGINS="http://localhost:3000, https://search.example.com,")
+
+    assert settings.cors_origin_list == ["http://localhost:3000", "https://search.example.com"]

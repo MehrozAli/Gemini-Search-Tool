@@ -34,8 +34,17 @@ class Settings(BaseSettings):
         alias="DEFAULT_MODEL",
         description="Default Gemini model to use for queries",
     )
+    cors_origins: str = Field(
+        "*",
+        alias="CORS_ORIGINS",
+        description="Comma-separated browser origins allowed to call the API, or * for any",
+    )
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+
+    @property
+    def cors_origin_list(self) -> list[str]:
+        return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
 
 
 @lru_cache
