@@ -2,10 +2,6 @@
 from functools import lru_cache
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from dotenv import load_dotenv
-
-# Load .env early so pydantic can pick up defaults
-load_dotenv()
 
 
 class Settings(BaseSettings):

@@ -1,0 +1,9 @@
+# Direct dependencies. requirements.txt is the pinned result of installing
+# these into a clean Python 3.13 environment (pip freeze).
+fastapi
+uvicorn[standard]
+google-genai
+pydantic-settings
+python-multipart
+networkx
+requests
