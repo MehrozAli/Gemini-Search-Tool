@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import tempfile
 import time
 from typing import Any, Dict, List, Optional
 
@@ -19,12 +20,35 @@ class FileSearchService:
         self.settings = get_settings()
 
     def create_store(self, display_name: Optional[str] = None) -> Dict[str, Any]:
-        """Create a new file search store."""
+        """
+        Create a new file search store and ingest the freshly generated Notion graph JSON.
+        Returns dict with store info and ingest result.
+        """
 
         store = self.client.file_search_stores.create(
             config={"display_name": display_name or self.settings.default_store_display_name}
         )
-        return self._store_to_dict(store)
+        store_dict = self._store_to_dict(store)
+
+        ingest_result: Optional[Dict[str, Any]] = None
+        temp_path: Optional[str] = None
+
+        try:
+            # Generate the JSON file from Notion
+            temp_path = self.generate_graph_json()
+
+            # Upload to the newly created store
+            ingest_result = self.upload_file(
+                store_name=store_dict["name"],
+                file_path=temp_path,
+                display_name=os.path.basename(temp_path),
+            )
+        finally:
+            # Always clean up the local file
+            if temp_path and os.path.exists(temp_path):
+                os.remove(temp_path)
+
+        return {"store": store_dict, "ingest": ingest_result}
 
     def list_stores(self) -> List[Dict[str, Any]]:
         """Return all available file search stores."""
@@ -40,9 +64,11 @@ class FileSearchService:
         if display_name:
             config["display_name"] = display_name
 
+        store_resource = self._resolve_store_resource(store_name)
+
         operation = self.client.file_search_stores.upload_to_file_search_store(
             file=file_path,
-            file_search_store_name=store_name,
+            file_search_store_name=store_resource,
             config=config if config else None,
         )
 
@@ -51,6 +77,62 @@ class FileSearchService:
             operation = self.client.operations.get(operation)
 
         return self._operation_to_dict(operation)
+
+    def generate_graph_json(self, output_path: Optional[str] = None) -> str:
+        """Generate the knowledge graph JSON using the GraphRag builder (extraction only)."""
+
+        # Defer import to avoid loading heavy deps at app startup
+        from GraphRag import NotionKnowledgeGraphBuilder, DATABASE_ID
+
+        temp_path = output_path or os.path.join(
+            tempfile.gettempdir(), f"knowledge_graph_{int(time.time())}.json"
+        )
+
+        builder = NotionKnowledgeGraphBuilder(DATABASE_ID)
+        pages = builder.fetch_database_pages()
+        builder.build_graph(pages)
+        builder.save_graph(temp_path)
+
+        return temp_path
+
+    def sync_graph_document(
+        self, store_name: str, display_name: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Recreate the store (force delete) and ingest freshly generated Notion graph JSON.
+        Returns dict with store info and ingest result.
+        """
+
+        temp_path: Optional[str] = None
+        try:
+            # 1) Regenerate JSON from Notion
+            temp_path = self.generate_graph_json()
+
+            # 2) Delete the existing store (force) to remove all documents
+            store_resource = self._resolve_store_resource(store_name)
+            try:
+                self.client.file_search_stores.delete(name=store_resource, config={"force": True})
+            except Exception:
+                # Ignore delete failures; proceed to create
+                pass
+
+            # 3) Recreate the store with same display name (if provided)
+            new_store = self.client.file_search_stores.create(
+                config={"display_name": display_name or self.settings.default_store_display_name}
+            )
+            store_dict = self._store_to_dict(new_store)
+
+            # 4) Upload regenerated file
+            ingest_result = self.upload_file(
+                store_name=store_dict["name"],
+                file_path=temp_path,
+                display_name=os.path.basename(temp_path),
+            )
+            return {"store": store_dict, "ingest": ingest_result}
+        finally:
+            # 5) Always remove local artifact
+            if temp_path and os.path.exists(temp_path):
+                os.remove(temp_path)
 
     def query_store(self, store_name: str, prompt: str, model: Optional[str] = None, system_prompt: Optional[str] = None) -> Dict[str, Any]:
         """Execute a grounded Gemini prompt against a file search store."""
@@ -93,8 +175,9 @@ class FileSearchService:
     def delete_store(self, store_name: str) -> str:
         """Delete a specific file search store (force)."""
         
-        self.client.file_search_stores.delete(name=store_name, config={"force": True})
-        return store_name
+        store_resource = self._resolve_store_resource(store_name)
+        self.client.file_search_stores.delete(name=store_resource, config={"force": True})
+        return store_resource
 
     def delete_all_stores(self) -> List[str]:
         """Delete every file search store (force)."""
@@ -149,5 +232,54 @@ class FileSearchService:
             pass
 
         return {"text": text, "sources": sources}
+
+    # --- helpers ---------------------------------------------------------
+    @staticmethod
+    def _normalize_store_name(store_name: str) -> str:
+        """Ensure store resource name has the expected prefix."""
+        if store_name.startswith("fileSearchStores/"):
+            return store_name
+        return f"fileSearchStores/{store_name}"
+
+    def _resolve_store_resource(self, store_name: str) -> str:
+        """
+        Resolve to a valid store resource name.
+        - If already a resource, return it.
+        - Else try to match by display_name from list().
+        - Else fall back to normalized input.
+        """
+        if store_name.startswith("fileSearchStores/"):
+            return store_name
+
+        # Try to find by display_name
+        try:
+            for store in self.client.file_search_stores.list():
+                if getattr(store, "display_name", None) == store_name:
+                    return getattr(store, "name", store_name)
+        except Exception:
+            pass
+
+        return self._normalize_store_name(store_name)
+
+    def _normalize_document_name(self, store_name: str, document_name: str) -> str:
+        """
+        Ensure document resource name is fully qualified.
+        If caller passes just a doc id or filename, stitch it with the store.
+        """
+        if "/documents/" in document_name:
+            return document_name
+        doc_id = document_name.split("/")[-1]
+        return f"{self._normalize_store_name(store_name)}/documents/{doc_id}"
+
+    def _delete_document_force(self, document_name: str) -> None:
+        """Delete a document with force, ignoring missing-document errors."""
+        try:
+            self.client.file_search_stores.documents.delete(
+                name=document_name,
+                config={"force": True},
+            )
+        except Exception:
+            # Ignore delete failures (e.g., not found) to keep sync moving
+            pass
 
 

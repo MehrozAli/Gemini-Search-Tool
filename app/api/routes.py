@@ -18,6 +18,8 @@ from app.schemas.file_search import (
     QueryResponse,
     StoreListResponse,
     UploadFileResponse,
+    SyncRequest,
+    SyncResponse,
 )
 from app.services.file_search_service import FileSearchService
 
@@ -40,8 +42,17 @@ async def create_store(
     service: FileSearchService = Depends(get_service),
 ) -> CreateStoreResponse:
     try:
-        store = await run_in_threadpool(service.create_store, payload.display_name)
-        return CreateStoreResponse(store=store)
+        result = await run_in_threadpool(service.create_store, payload.display_name)
+        ingest = result.get("ingest") or {}
+        message = "File uploaded and ingested" if ingest.get("done") else "File upload in progress"
+        ingest_resp = None
+        if ingest:
+            ingest_resp = UploadFileResponse(
+                operation_name=ingest.get("name"),
+                done=bool(ingest.get("done")),
+                message=message,
+            )
+        return CreateStoreResponse(store=result["store"], ingest=ingest_resp)
     except Exception as exc:  # pragma: no cover - surface clean error upstream
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
@@ -84,6 +95,30 @@ async def upload_file(
         await file.close()
         if temp_file_path and os.path.exists(temp_file_path):
             os.remove(temp_file_path)
+
+
+@router.post("/stores/{store_name:path}/sync", response_model=SyncResponse)
+async def sync_store(
+    store_name: str,
+    payload: SyncRequest,
+    service: FileSearchService = Depends(get_service),
+) -> SyncResponse:
+    try:
+        result = await run_in_threadpool(
+            service.sync_graph_document,
+            store_name,
+            payload.display_name,
+        )
+        ingest = result.get("ingest") or {}
+        message = "File synced and ingested" if ingest.get("done") else "File sync in progress"
+        ingest_resp = UploadFileResponse(
+            operation_name=ingest.get("name"),
+            done=bool(ingest.get("done")),
+            message=message,
+        )
+        return SyncResponse(store=result["store"], ingest=ingest_resp)
+    except Exception as exc:  # pragma: no cover
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 @router.post("/stores/{store_name:path}/query", response_model=QueryResponse)
