@@ -18,14 +18,17 @@ class CreateStoreRequest(BaseModel):
     display_name: Optional[str] = Field(None, description="Display name for the store")
 
 
-class CreateStoreResponse(BaseModel):
-    store: Store
-
-
 class UploadFileResponse(BaseModel):
     operation_name: Optional[str] = None
     done: bool = False
     message: str
+
+
+class CreateStoreResponse(BaseModel):
+    store: Store
+    ingest: UploadFileResponse | None = Field(
+        None, description="Result of initial document ingest when creating the store"
+    )
 
 
 class QueryRequest(BaseModel):
@@ -43,6 +46,17 @@ class QuerySource(BaseModel):
 class QueryResponse(BaseModel):
     text: str
     sources: List[QuerySource]
+
+
+class SyncRequest(BaseModel):
+    """Request body for recreating a store and re-ingesting the generated document."""
+
+    display_name: Optional[str] = Field(None, description="Display name to use when recreating the store")
+
+
+class SyncResponse(BaseModel):
+    store: Store
+    ingest: UploadFileResponse
 
 
 class DeleteStoresResponse(BaseModel):
