@@ -134,16 +134,63 @@ class FileSearchService:
             if temp_path and os.path.exists(temp_path):
                 os.remove(temp_path)
 
-    def query_store(self, store_name: str, prompt: str, model: Optional[str] = None, system_prompt: Optional[str] = None) -> Dict[str, Any]:
-        """Execute a grounded Gemini prompt against a file search store."""
+    def query_store(
+        self, 
+        store_name: str, 
+        prompt: str, 
+        model: Optional[str] = None, 
+        system_prompt: Optional[str] = None,
+        conversation_history: Optional[List[Dict[str, str]]] = None
+    ) -> Dict[str, Any]:
+        """
+        Execute a grounded Gemini prompt against a file search store.
+        
+        Args:
+            store_name: Name of the file search store
+            prompt: Current user query
+            model: Optional model override
+            system_prompt: Optional system instruction
+            conversation_history: List of previous messages with 'role' and 'content' keys
+            
+        Returns:
+            Dict with 'text' and 'sources' keys
+        """
 
-        # Build the content with system prompt if provided
-        content = prompt
+        # Build the contents array for multi-turn conversation
+        contents = []
+        
+        # Add conversation history if provided
+        if conversation_history:
+            for msg in conversation_history:
+                role = msg.get("role", "user")
+                content = msg.get("content", "")
+                
+                # Skip empty messages
+                if not content.strip():
+                    continue
+                
+                # Gemini expects "user" or "model" roles
+                if role not in ["user", "model"]:
+                    continue
+                
+                contents.append({
+                    "role": role,
+                    "parts": [{"text": content}]
+                })
+        
+        # Add current prompt
+        current_content = prompt
         if not system_prompt:
             # Use default instruction if no system prompt provided
-            content = f"""{prompt}\n(return your answer in markdown as sections and bullet points and also return the images if there are any for the images link in markdown like ![Alt text here](/path/to/image.jpg "Optional Title")
+            current_content = f"""{prompt}\n(return your answer in markdown as sections and bullet points and also return the images if there are any for the images link in markdown like ![Alt text here](/path/to/image.jpg "Optional Title")
 )\nANSWER:\n"""
+        
+        contents.append({
+            "role": "user",
+            "parts": [{"text": current_content}]
+        })
 
+        # Configure file search tool
         config = types.GenerateContentConfig(
             tools=[
                 types.Tool(
@@ -161,7 +208,7 @@ class FileSearchService:
         try:
             response = self.client.models.generate_content(
                 model=model or self.settings.default_model,
-                contents=content,
+                contents=contents,  # Pass full conversation context
                 config=config,
             )
             return self._response_to_dict(response)
