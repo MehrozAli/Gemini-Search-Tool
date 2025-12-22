@@ -128,12 +128,21 @@ async def query_store(
     service: FileSearchService = Depends(get_service),
 ) -> QueryResponse:
     try:
+        # Convert Pydantic models to dicts for conversation history
+        conversation_history = None
+        if payload.conversation_history:
+            conversation_history = [
+                {"role": msg.role, "content": msg.content}
+                for msg in payload.conversation_history
+            ]
+        
         result = await run_in_threadpool(
             service.query_store,
             store_name,
             payload.prompt,
             payload.model,
-            payload.system_prompt
+            payload.system_prompt,
+            conversation_history  # Pass conversation history
         )
         return QueryResponse(**result)
     except Exception as exc:  # pragma: no cover

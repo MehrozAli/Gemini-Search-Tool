@@ -31,10 +31,24 @@ class CreateStoreResponse(BaseModel):
     )
 
 
+class ConversationMessage(BaseModel):
+    """Represents a single message in the conversation history."""
+    role: str = Field(..., description="Role of the message sender: 'user' or 'model'")
+    content: str = Field(..., description="Text content of the message")
+
+
 class QueryRequest(BaseModel):
     prompt: str = Field(..., description="Prompt to submit to Gemini")
     model: Optional[str] = Field(None, description="Override the default Gemini model")
     system_prompt: Optional[str] = Field(None, description="System prompt to guide the model's behavior")
+    conversation_history: Optional[List[ConversationMessage]] = Field(
+        None, 
+        description="Previous conversation messages for context. Include recent messages only (e.g., last 10).",
+        example=[
+            {"role": "user", "content": "What is in the documents?"},
+            {"role": "model", "content": "The documents contain information about..."}
+        ]
+    )
 
 
 class QuerySource(BaseModel):
